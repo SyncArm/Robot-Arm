@@ -3,54 +3,47 @@
 #define I2CAdd 0x40
 HCPCA9685 HCPCA9685(I2CAdd);
 
-const int right_X = A2;
-const int right_Y = A3;
-
-unsigned long previousMillis = 0;
-const long interval = 50; // 더 빠르게 업데이트 (부드럽게 움직이도록)
-
-int previousServoX = 135;  // 초기값을 현재 서보 위치와 동일하게 설정
-int previousServoY = 240;
+unsigned long lastReceivedTime = 0;
+float currentPos[4] = {0, 240, 240, 135};
+float targetPos[4] = {0, 240, 240, 135};
+unsigned long lastUpdateTime = 0;
+const unsigned long updateInterval = 100;
 
 void setup() {
-    Serial.begin(9600);
-    HCPCA9685.Init(SERVO_MODE);
-    HCPCA9685.Sleep(false);
+  Serial.begin(115200);
+  Serial1.begin(115200);
+  HCPCA9685.Init(SERVO_MODE);
+  HCPCA9685.Sleep(false);
 
-    HCPCA9685.Servo(0, 0);   
-    HCPCA9685.Servo(1, 240);
-    HCPCA9685.Servo(2, 240);
-    HCPCA9685.Servo(3, 135);
+  HCPCA9685.Servo(1, 240);
+  HCPCA9685.Servo(2, 240);
+  HCPCA9685.Servo(3, 150);
 }
 
 void loop() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
-        previousMillis = currentMillis;
-        
-        int x1 = analogRead(right_X);
-        int y1 = analogRead(right_Y);
-        
-        // 1023 값을 360도 범위로 변환 (map() 없이)
-        int targetServoX = x1 / 4;  // 0~1023 → 0~255
-        int targetServoY = y1 / 4+50;
+  if (Serial1.available() > 0) {
+    String receivedData = Serial1.readStringUntil('\n');
+    Serial.println(receivedData);
 
-        // 이전 값과 새 값 사이에서 부드럽게 보간 (가중치 0.9)
-        previousServoX = 0.8 * previousServoX + 0.2 * targetServoX;
-        previousServoY = 0.8 * previousServoY + 0.2 * targetServoY;
+    int avg_x, avg_y, depth;
+    int result = sscanf(receivedData.c_str(), "%d,%d,%d", &avg_x, &avg_y, &depth);
+    Serial.print("sscanf result: ");
+    Serial.println(result);
+    Serial.println((float)depth / 10);
 
-        // 서보 모터 회전
-        HCPCA9685.Servo(3, previousServoX);
-        HCPCA9685.Servo(2, previousServoY);
+    targetPos[1] = constrain(map(depth, 400, 200, 0, 250), 0, 250);
+    targetPos[2] = constrain(map(avg_y, 0, 800, 0, 240), 0, 240);
+    targetPos[3] = constrain(map(avg_x, 200, 850, 0, 300), 0, 300);
+  }
 
-        // 시리얼 모니터 출력
-        Serial.print("RX: "); Serial.print(x1);
-        Serial.print(" (Target ServoX: "); Serial.print(targetServoX);
-        Serial.print(" -> Smooth ServoX: "); Serial.print(previousServoX);
-        Serial.print(") RY: "); Serial.print(y1);
-        Serial.print(" (Target ServoY: "); Serial.print(targetServoY);
-        Serial.print(" -> Smooth ServoY: "); Serial.print(previousServoY);
-        Serial.println(")");
+  if (millis() - lastUpdateTime >= updateInterval) {
+    lastUpdateTime = millis();
+    for (int i = 1; i < 4; i++) {
+      if (currentPos[i] != targetPos[i]) {
+        float step = (targetPos[i] - currentPos[i]) * 0.1;
+        currentPos[i] += step;
+        HCPCA9685.Servo(i, (int)currentPos[i]);
+      }
     }
+  }
 }
-
