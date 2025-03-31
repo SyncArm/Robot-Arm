@@ -27,12 +27,9 @@ void loop() {
 
     int avg_x, avg_y, depth;
     int result = sscanf(receivedData.c_str(), "%d,%d,%d", &avg_x, &avg_y, &depth);
-    Serial.print("sscanf result: ");
-    Serial.println(result);
-    Serial.println((float)depth / 10);
 
-    targetPos[1] = constrain(map(depth, 400, 200, 0, 250), 0, 250);
-    targetPos[2] = constrain(map(avg_y, 0, 800, 0, 240), 0, 240);
+    targetPos[1] = constrain(map(avg_y, 0, 800, 0, 240), 0, 240);
+    targetPos[2] = constrain(map(depth, 200, 400, 0, 250), 30, 250);
     targetPos[3] = constrain(map(avg_x, 200, 850, 0, 300), 0, 300);
   }
 
